@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Environment variables / secrets
+.env
+.env.*
+
+# Logs
+*.log
+
+# Model checkpoints / weights
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Training outputs
+checkpoints/
+outputs/
+runs/
+
+# Data
+data/
