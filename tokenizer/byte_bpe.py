@@ -1,4 +1,5 @@
-from collections import Counter
+from collections import Counter, defaultdict
+import heapq
 
 
 class ByteTokenizer:
@@ -82,9 +83,22 @@ class ByteTokenizer:
             )
             tokens.extend(example_tokens)
 
-        for merge_number in range(num_merges):
-            pair_counts = self.get_pair_counts(tokens)
+        n = len(tokens)
+        prev_arr = list(range(-1, n - 1))
+        next_arr = list(range(1, n + 1))
 
+        pair_counts = Counter()
+        pair_positions = defaultdict(set)
+
+        for i in range(n):
+            j = next_arr[i]
+            if j < n:
+                if tokens[i] not in self.special_tokens and tokens[j] not in self.special_tokens:
+                    pair = (tokens[i], tokens[j])
+                    pair_counts[pair] += 1
+                    pair_positions[pair].add(i)
+
+        for merge_number in range(num_merges):
             if not pair_counts:
                 break
 
@@ -96,11 +110,52 @@ class ByteTokenizer:
             self.merges[best_pair] = new_token
             self.token_to_pair[new_token] = best_pair
 
-            tokens = self.merge_pair(
-                tokens,
-                best_pair,
-                new_token
-            )
+            positions = sorted(pair_positions.pop(best_pair))
+            del pair_counts[best_pair]
+
+            for i in positions:
+                if tokens[i] != best_pair[0]:
+                    continue
+                j = next_arr[i]
+                if j >= n or tokens[j] != best_pair[1]:
+                    continue
+
+                j_next = next_arr[j]
+
+                p = prev_arr[i]
+                if p >= 0 and tokens[p] not in self.special_tokens:
+                    old_left = (tokens[p], best_pair[0])
+                    pair_counts[old_left] -= 1
+                    if pair_counts[old_left] == 0:
+                        del pair_counts[old_left]
+                        del pair_positions[old_left]
+                    else:
+                        pair_positions[old_left].discard(p)
+
+                    new_left = (tokens[p], new_token)
+                    pair_counts[new_left] += 1
+                    pair_positions[new_left].add(p)
+
+                if j_next < n and tokens[j_next] not in self.special_tokens:
+                    old_right = (best_pair[1], tokens[j_next])
+                    if old_right in pair_counts:
+                        pair_counts[old_right] -= 1
+                        if pair_counts[old_right] == 0:
+                            del pair_counts[old_right]
+                            del pair_positions[old_right]
+                        else:
+                            pair_positions[old_right].discard(j)
+
+                    new_right = (new_token, tokens[j_next])
+                    pair_counts[new_right] += 1
+                    pair_positions[new_right].add(i)
+
+                tokens[i] = new_token
+                tokens[j] = -1
+
+                next_arr[i] = j_next
+                if j_next < n:
+                    prev_arr[j_next] = i
 
             print(
                 f"Merge {merge_number + 1}: "
@@ -108,33 +163,76 @@ class ByteTokenizer:
                 f"(count={count})"
             )
 
-        return tokens
+        return [t for t in tokens if t != -1]
 
     def encode(self, text):
         tokens = self.encode_bytes(text)
+        n = len(tokens)
 
-        for pair, new_token in self.merges.items():
-            tokens = self.merge_pair(
-                tokens,
-                pair,
-                new_token
-            )
+        if not self.merges or n < 2:
+            return tokens
 
-        return tokens
+        merge_rank = {pair: rank for rank, pair in enumerate(self.merges)}
+
+        prev_arr = list(range(-1, n - 1))
+        next_arr = list(range(1, n + 1))
+
+        heap = []
+        for i in range(n - 1):
+            pair = (tokens[i], tokens[i + 1])
+            if pair in merge_rank:
+                heapq.heappush(heap, (merge_rank[pair], i))
+
+        while heap:
+            rank, i = heapq.heappop(heap)
+            j = next_arr[i]
+
+            if j >= n:
+                continue
+
+            pair = (tokens[i], tokens[j])
+
+            if pair not in merge_rank or merge_rank[pair] != rank:
+                continue
+
+            new_token = self.merges[pair]
+            j_next = next_arr[j]
+
+            tokens[i] = new_token
+            tokens[j] = -1
+
+            next_arr[i] = j_next
+            if j_next < n:
+                prev_arr[j_next] = i
+
+            p = prev_arr[i]
+            if p >= 0:
+                new_pair = (tokens[p], new_token)
+                if new_pair in merge_rank:
+                    heapq.heappush(heap, (merge_rank[new_pair], p))
+
+            if j_next < n:
+                new_pair = (new_token, tokens[j_next])
+                if new_pair in merge_rank:
+                    heapq.heappush(heap, (merge_rank[new_pair], i))
+
+        return [t for t in tokens if t != -1]
 
     def expand_token(self, token):
-        if token < 256:
-            return [token]
+        result = []
+        stack = [token]
 
-        if token in self.special_tokens:
-            return [token]
+        while stack:
+            t = stack.pop()
 
-        pair = self.token_to_pair[token]
+            if t < 256 or t in self.special_tokens:
+                result.append(t)
+            else:
+                left, right = self.token_to_pair[t]
+                stack.append(right)
+                stack.append(left)
 
-        left = self.expand_token(pair[0])
-        right = self.expand_token(pair[1])
-
-        return left + right
+        return result
 
     def decode(self, tokens):
         decoded_bytes = []
