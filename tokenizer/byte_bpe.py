@@ -1,5 +1,6 @@
 from collections import Counter, defaultdict
 import heapq
+import numpy as np
 
 
 class ByteTokenizer:
@@ -83,9 +84,10 @@ class ByteTokenizer:
             )
             tokens.extend(example_tokens)
 
+        tokens = np.array(tokens, dtype=np.int32)
         n = len(tokens)
-        prev_arr = list(range(-1, n - 1))
-        next_arr = list(range(1, n + 1))
+        prev_arr = np.arange(-1, n - 1, dtype=np.int32)
+        next_arr = np.arange(1, n + 1, dtype=np.int32)
 
         pair_counts = Counter()
         pair_positions = defaultdict(set)
@@ -163,7 +165,7 @@ class ByteTokenizer:
                 f"(count={count})"
             )
 
-        return [t for t in tokens if t != -1]
+        return tokens[tokens != -1].tolist()
 
     def encode(self, text):
         tokens = self.encode_bytes(text)
