@@ -34,4 +34,5 @@ outputs/
 runs/
 
 # Data
-data/
+data/*
+!data/.gitkeep
