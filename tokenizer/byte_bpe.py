@@ -96,7 +96,7 @@ class ByteTokenizer:
             j = next_arr[i]
             if j < n:
                 if tokens[i] not in self.special_tokens and tokens[j] not in self.special_tokens:
-                    pair = (tokens[i], tokens[j])
+                    pair = (int(tokens[i]), int(tokens[j]))
                     pair_counts[pair] += 1
                     pair_positions[pair].add(i)
 
@@ -126,7 +126,7 @@ class ByteTokenizer:
 
                 p = prev_arr[i]
                 if p >= 0 and tokens[p] not in self.special_tokens:
-                    old_left = (tokens[p], best_pair[0])
+                    old_left = (int(tokens[p]), best_pair[0])
                     pair_counts[old_left] -= 1
                     if pair_counts[old_left] == 0:
                         del pair_counts[old_left]
@@ -134,12 +134,12 @@ class ByteTokenizer:
                     else:
                         pair_positions[old_left].discard(p)
 
-                    new_left = (tokens[p], new_token)
+                    new_left = (int(tokens[p]), new_token)
                     pair_counts[new_left] += 1
                     pair_positions[new_left].add(p)
 
                 if j_next < n and tokens[j_next] not in self.special_tokens:
-                    old_right = (best_pair[1], tokens[j_next])
+                    old_right = (best_pair[1], int(tokens[j_next]))
                     if old_right in pair_counts:
                         pair_counts[old_right] -= 1
                         if pair_counts[old_right] == 0:
@@ -148,7 +148,7 @@ class ByteTokenizer:
                         else:
                             pair_positions[old_right].discard(j)
 
-                    new_right = (new_token, tokens[j_next])
+                    new_right = (new_token, int(tokens[j_next]))
                     pair_counts[new_right] += 1
                     pair_positions[new_right].add(i)
 
