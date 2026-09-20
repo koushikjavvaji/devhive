@@ -1,5 +1,6 @@
 from collections import Counter, defaultdict
 import heapq
+import json
 import numpy as np
 
 
@@ -74,6 +75,54 @@ class ByteTokenizer:
 
         return tokens
 
+    def encode_example(self, comment, code):
+        tokens = [self.comment_token]
+        tokens.extend(self.encode(comment))
+        tokens.append(self.code_token)
+        tokens.extend(self.encode(code))
+        tokens.append(self.end_token)
+        return tokens
+
+    def _initial_pair_counts(self, tokens):
+        # counting every adjacent pair in a python for-loop is the
+        # bottleneck at corpus scale (O(n) interpreted set/dict ops); numpy
+        # does the O(n) work (masking, sort, group boundaries) in C, and the
+        # python loop below only touches the much smaller set of distinct
+        # pairs
+        shift = 1 << 20  # > any realistic token id, keeps (left, right) keys unique
+
+        left = tokens[:-1].astype(np.int64)
+        right = tokens[1:].astype(np.int64)
+
+        specials = np.array(sorted(self.special_tokens))
+        valid = ~np.isin(left, specials) & ~np.isin(right, specials)
+
+        idx = np.nonzero(valid)[0]
+        key = left[idx] * shift + right[idx]
+
+        order = np.argsort(key)
+        sorted_key = key[order]
+        sorted_idx = idx[order]
+
+        change = np.empty(len(sorted_key), dtype=bool)
+        if len(sorted_key) > 0:
+            change[0] = True
+            change[1:] = sorted_key[1:] != sorted_key[:-1]
+        starts = np.nonzero(change)[0]
+        group_bounds = np.append(starts, len(sorted_key))
+
+        pair_counts = Counter()
+        pair_positions = defaultdict(set)
+
+        for g in range(len(starts)):
+            start, end = group_bounds[g], group_bounds[g + 1]
+            k = int(sorted_key[start])
+            pair = (k // shift, k % shift)
+            pair_counts[pair] = int(end - start)
+            pair_positions[pair] = set(sorted_idx[start:end].tolist())
+
+        return pair_counts, pair_positions
+
     def train(self, examples, num_merges):
         tokens = []
 
@@ -89,16 +138,7 @@ class ByteTokenizer:
         prev_arr = np.arange(-1, n - 1, dtype=np.int32)
         next_arr = np.arange(1, n + 1, dtype=np.int32)
 
-        pair_counts = Counter()
-        pair_positions = defaultdict(set)
-
-        for i in range(n):
-            j = next_arr[i]
-            if j < n:
-                if tokens[i] not in self.special_tokens and tokens[j] not in self.special_tokens:
-                    pair = (int(tokens[i]), int(tokens[j]))
-                    pair_counts[pair] += 1
-                    pair_positions[pair].add(i)
+        pair_counts, pair_positions = self._initial_pair_counts(tokens)
 
         for merge_number in range(num_merges):
             if not pair_counts:
@@ -247,7 +287,35 @@ class ByteTokenizer:
                 self.expand_token(token)
             )
 
-        return bytes(decoded_bytes).decode("utf-8")
+        return bytes(decoded_bytes).decode("utf-8", errors="replace")
+
+    @property
+    def vocab_size(self):
+        return self.next_token
+
+    def save(self, path):
+        # merges are applied in the order they were learned, so a plain
+        # list preserves that order without needing tuple keys in JSON
+        merges = [
+            [left, right, new_token]
+            for (left, right), new_token in self.merges.items()
+        ]
+
+        with open(path, "w") as f:
+            json.dump({"merges": merges, "next_token": self.next_token}, f)
+
+    @classmethod
+    def load(cls, path):
+        with open(path) as f:
+            data = json.load(f)
+
+        tokenizer = cls()
+        for left, right, new_token in data["merges"]:
+            tokenizer.merges[(left, right)] = new_token
+            tokenizer.token_to_pair[new_token] = (left, right)
+
+        tokenizer.next_token = data["next_token"]
+        return tokenizer
 
 
 if __name__ == "__main__":

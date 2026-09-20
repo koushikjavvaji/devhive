@@ -14,7 +14,6 @@ class GroupedQueryAttention(nn.Module):
 
         self.n_heads = n_heads
         self.n_kv_heads = n_kv_heads
-        self.n_rep = n_heads // n_kv_heads
         self.head_dim = d_model // n_heads
 
         self.q_proj = nn.Linear(d_model, n_heads * self.head_dim, bias=False)
@@ -34,17 +33,13 @@ class GroupedQueryAttention(nn.Module):
         q = self.rope(q)
         k = self.rope(k)
 
-        # share each kv head across n_rep query heads
-        k = k.repeat_interleave(self.n_rep, dim=1)
-        v = v.repeat_interleave(self.n_rep, dim=1)
-
-        scores = (q @ k.transpose(-2, -1)) / (self.head_dim ** 0.5)
-
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool), diagonal=1)
-        scores = scores.masked_fill(causal_mask, float("-inf"))
-
-        weights = F.softmax(scores, dim=-1)
-        out = weights @ v
+        # fused kernel handles the kv-head grouping internally, so k/v stay
+        # at n_kv_heads and we keep the memory savings GQA is for
+        out = F.scaled_dot_product_attention(
+            q, k, v,
+            is_causal=True,
+            enable_gqa=(self.n_kv_heads != self.n_heads),
+        )
 
         out = out.transpose(1, 2).contiguous().view(batch, seq_len, self.n_heads * self.head_dim)
         return self.out_proj(out)
