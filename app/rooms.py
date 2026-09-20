@@ -1,27 +1,32 @@
 import asyncio
-import itertools
 import time
+
+from app import db
 
 
 class Room:
     """A single war room: message history, connected clients, and the teammates in it.
 
     Each teammate responds independently and concurrently as soon as it's ready, so
-    faster teammates (the heuristic one) don't wait on slower ones (model inference)."""
+    faster teammates (the heuristic one) don't wait on slower ones (model inference).
+    Messages are persisted to sqlite, so history survives a server restart."""
 
-    def __init__(self, teammates):
+    def __init__(self, teammates, room_id="main", conn=None):
         self.teammates = teammates
-        self.messages = []
+        self.room_id = room_id
+        self.conn = conn or db.get_connection()
+        self.messages = db.load_messages(self.conn, self.room_id)
         self.connections = []
-        self._next_id = itertools.count(1)
 
     def _record(self, sender, sender_type, text):
+        ts = time.time()
+        message_id = db.insert_message(self.conn, self.room_id, sender, sender_type, text, ts)
         message = {
-            "id": next(self._next_id),
+            "id": message_id,
             "sender": sender,
             "sender_type": sender_type,
             "text": text,
-            "ts": time.time(),
+            "ts": ts,
         }
         self.messages.append(message)
         return message
