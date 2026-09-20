@@ -38,7 +38,18 @@ class LLMTeammate(Teammate):
                 {"role": "user", "content": prompt},
             ],
         )
-        return completion.choices[0].message.content
+        if not completion.choices:
+            # some OpenAI-compatible providers (OpenRouter, at least) return HTTP 200
+            # with an "error" field instead of an actual error status, so the openai
+            # client doesn't raise — it just leaves choices as None
+            error = (completion.model_extra or {}).get("error", {})
+            raise RuntimeError(error.get("message") or "upstream returned no choices")
+
+        content = completion.choices[0].message.content
+        if not content:
+            raise RuntimeError("upstream returned an empty response")
+
+        return content
 
 
 def _client(api_key, base_url=None):
