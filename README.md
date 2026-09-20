@@ -61,6 +61,16 @@ minutes/~1h on a laptop; bump them up for a real run. `scripts/train.py`
 prints device + throughput so you can gauge how long a bigger run will
 actually take before committing to it.
 
+## tests
+
+```bash
+./.venv/bin/pip install -r requirements-dev.txt
+./.venv/bin/python -m pytest
+```
+
+App tests use an isolated db + a fixed teammate list (`app.main.create_app`),
+so they don't touch `data/devhive.db` or need a trained checkpoint on disk.
+
 ## project layout
 
 ```
@@ -69,4 +79,5 @@ model/        the transformer (embeddings, RoPE, GQA, SwiGLU, GPT)
 inference/    shared generation logic (KV-cached), used by the CLI and the app
 scripts/      train_tokenizer / prepare_data / train / generate
 app/          the war room: FastAPI server, rooms, teammates, static chat UI
+tests/        pytest suite for all of the above
 ```
