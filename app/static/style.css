@@ -6,6 +6,7 @@
   --text-dim: #8a8f98;
   --accent: #f9c74f;
   --human: #90be6d;
+  --error: #e5533d;
 }
 
 * { box-sizing: border-box; }
@@ -163,6 +164,16 @@ main#messages {
   opacity: 0.6;
   font-style: italic;
 }
+
+.msg.failed {
+  align-self: flex-start;
+  border-style: dashed;
+  border-color: var(--error);
+  opacity: 0.75;
+  font-style: italic;
+}
+
+.msg.failed .sender { color: var(--error); }
 
 .msg code, .msg pre {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;

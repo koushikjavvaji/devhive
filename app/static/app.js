@@ -71,17 +71,23 @@ function initChat(roomId) {
     return teammateColors[sender] || "#8a8f98";
   }
 
+  function isFailure(text) {
+    return text.startsWith("(failed to respond:") || text.startsWith("(failed to react:");
+  }
+
   function renderMessage(message) {
+    const failed = message.sender_type === "teammate" && isFailure(message.text);
+
     const el = document.createElement("div");
-    el.className = `msg ${message.sender_type}`;
-    if (message.sender_type === "teammate") {
+    el.className = `msg ${message.sender_type}${failed ? " failed" : ""}`;
+    if (message.sender_type === "teammate" && !failed) {
       el.style.borderColor = colorFor(message.sender);
     }
 
     const sender = document.createElement("span");
     sender.className = "sender";
     sender.textContent = message.sender;
-    if (message.sender_type === "teammate") {
+    if (message.sender_type === "teammate" && !failed) {
       sender.style.color = colorFor(message.sender);
     }
 
@@ -95,12 +101,14 @@ function initChat(roomId) {
   }
 
   function renderBody(text) {
-    // minimal, safe formatting: escape html, then turn ```code``` into <pre>
+    // minimal, safe formatting: escape html, then turn ```lang\ncode``` into <pre>
+    // (strip the language tag — there's no syntax highlighter to use it, so left in
+    // it just showed up as a stray word above the code)
     const escaped = text
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-    return escaped.replace(/```([\s\S]*?)```/g, "<pre><code>$1</code></pre>");
+    return escaped.replace(/```(?:\w+\n)?([\s\S]*?)```/g, "<pre><code>$1</code></pre>");
   }
 
   function showTyping(sender) {

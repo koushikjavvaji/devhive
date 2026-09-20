@@ -3,7 +3,7 @@
 [![tests](https://github.com/koushikjavvaji/devhive/actions/workflows/tests.yml/badge.svg)](https://github.com/koushikjavvaji/devhive/actions/workflows/tests.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**[Live demo](https://devhive.onrender.com)** — free tier, spins down after 15 min idle
+**[Live demo](https://devhive-277r.onrender.com)** — free tier, spins down after 15 min idle
 (first request after that takes ~30-60s to wake up). Runs `triage-bot` + real LLM
 teammates; `from-scratch-gpt` is [local-only](#run-the-app) — the deploy deliberately
 skips the torch/training stack to keep the free-tier build small and fast.
