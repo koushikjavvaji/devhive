@@ -96,7 +96,7 @@ def estimate_loss():
         for i in range(EVAL_ITERS):
             x, y = get_batch(split)
             with torch.autocast(device_type=device, dtype=dtype):
-                _, loss = model(x, y)
+                _, loss, _ = model(x, y)
             split_losses[i] = loss.item()
         losses[split] = split_losses.mean().item()
 
@@ -136,7 +136,7 @@ for it in range(MAX_ITERS):
     for _ in range(GRAD_ACCUM_STEPS):
         x, y = get_batch("train")
         with torch.autocast(device_type=device, dtype=dtype):
-            _, loss = model(x, y)
+            _, loss, _ = model(x, y)
             loss = loss / GRAD_ACCUM_STEPS
         loss.backward()
         accum_loss += loss.item()

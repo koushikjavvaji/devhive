@@ -13,10 +13,10 @@ class RoPE(nn.Module):
         self.register_buffer("cos", torch.cos(angles))
         self.register_buffer("sin", torch.sin(angles))
 
-    def forward(self, x):
+    def forward(self, x, start_pos=0):
         seq_len = x.shape[-2]
-        cos = self.cos[:seq_len]
-        sin = self.sin[:seq_len]
+        cos = self.cos[start_pos:start_pos + seq_len]
+        sin = self.sin[start_pos:start_pos + seq_len]
         x_even = x[..., 0::2]
         x_odd  = x[..., 1::2]
         x_rotated_even = x_even * cos - x_odd * sin

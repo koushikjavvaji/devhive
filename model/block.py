@@ -15,10 +15,11 @@ class TransformerBlock(nn.Module):
         self.ffn_norm = RMSNorm(d_model, eps=eps)
         self.ffn = SwiGLU(d_model, d_ff)
 
-    def forward(self, x):
-        x = x + self.attn(self.attn_norm(x))
+    def forward(self, x, kv_cache=None, start_pos=0):
+        attn_out, kv_cache = self.attn(self.attn_norm(x), kv_cache=kv_cache, start_pos=start_pos)
+        x = x + attn_out
         x = x + self.ffn(self.ffn_norm(x))
-        return x
+        return x, kv_cache
 
 
 if __name__ == "__main__":
@@ -32,6 +33,6 @@ if __name__ == "__main__":
     block = TransformerBlock(d_model, n_heads, n_kv_heads, d_ff)
     x = torch.randn(batch, seq_len, d_model)
 
-    output = block(x)
+    output, _ = block(x)
     print("Input shape:", x.shape)
     print("Output shape:", output.shape)

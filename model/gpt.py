@@ -38,11 +38,16 @@ class GPT(nn.Module):
         if isinstance(module, nn.Linear) and module is not self.lm_head:
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, token_ids, targets=None):
+    def forward(self, token_ids, targets=None, kv_caches=None, start_pos=0):
         x = self.token_emb(token_ids)
 
-        for block in self.blocks:
-            x = block(x)
+        if kv_caches is None:
+            kv_caches = [None] * len(self.blocks)
+
+        new_kv_caches = []
+        for block, kv_cache in zip(self.blocks, kv_caches):
+            x, kv_cache = block(x, kv_cache=kv_cache, start_pos=start_pos)
+            new_kv_caches.append(kv_cache)
 
         x = self.final_norm(x)
         logits = self.lm_head(x)
@@ -55,7 +60,7 @@ class GPT(nn.Module):
                 ignore_index=-1,
             )
 
-        return logits, loss
+        return logits, loss, new_kv_caches
 
     def num_params(self):
         return sum(p.numel() for p in self.parameters())
@@ -79,6 +84,6 @@ if __name__ == "__main__":
     tokens = torch.randint(0, config.vocab_size, (batch, seq_len))
     targets = torch.randint(0, config.vocab_size, (batch, seq_len))
 
-    logits, loss = model(tokens, targets)
+    logits, loss, _ = model(tokens, targets)
     print("Logits shape:", logits.shape)
     print("Loss:", loss.item())
