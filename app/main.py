@@ -1,10 +1,13 @@
+import time
+import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.rooms import Room
+from app import db
+from app.rooms import RoomManager
 from app.teammates.heuristic import HeuristicTeammate
 from app.teammates.local_model import build_local_model_teammate
 from app.teammates.openai_teammate import build_openai_teammate
@@ -29,7 +32,8 @@ def build_teammates():
     return teammates
 
 
-room = Room(build_teammates())
+conn = db.get_connection()
+room_manager = RoomManager(build_teammates(), conn)
 
 
 @app.get("/")
@@ -37,8 +41,26 @@ async def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+@app.get("/r/{room_id}")
+async def room_page(room_id: str):
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/api/rooms")
+async def list_rooms():
+    return db.list_rooms(conn)
+
+
+@app.post("/api/rooms")
+async def create_room():
+    room_id = uuid.uuid4().hex[:12]
+    db.create_room(conn, room_id, time.time())
+    return {"id": room_id}
+
+
+@app.websocket("/ws/{room_id}")
+async def websocket_endpoint(websocket: WebSocket, room_id: str):
+    room = room_manager.get(room_id)
     await room.connect(websocket)
     try:
         while True:

@@ -11,12 +11,13 @@ class Room:
     faster teammates (the heuristic one) don't wait on slower ones (model inference).
     Messages are persisted to sqlite, so history survives a server restart."""
 
-    def __init__(self, teammates, room_id="main", conn=None):
+    def __init__(self, teammates, room_id, conn):
         self.teammates = teammates
         self.room_id = room_id
-        self.conn = conn or db.get_connection()
+        self.conn = conn
         self.messages = db.load_messages(self.conn, self.room_id)
         self.connections = []
+        self._has_title = any(m["sender_type"] == "human" for m in self.messages)
 
     def _record(self, sender, sender_type, text):
         ts = time.time()
@@ -58,6 +59,10 @@ class Room:
         message = self._record("you", "human", text)
         await self.broadcast({"type": "message", "message": message})
 
+        if not self._has_title:
+            db.set_room_title(self.conn, self.room_id, text.splitlines()[0][:60])
+            self._has_title = True
+
         for teammate in self.teammates:
             asyncio.create_task(self._get_teammate_reply(teammate))
 
@@ -71,3 +76,19 @@ class Room:
 
         message = self._record(teammate.name, "teammate", reply)
         await self.broadcast({"type": "message", "message": message})
+
+
+class RoomManager:
+    """Rooms are cheap and lazy: teammates (incl. the loaded model) are shared across
+    all of them, only per-room state (messages, connections) differs."""
+
+    def __init__(self, teammates, conn):
+        self.teammates = teammates
+        self.conn = conn
+        self._rooms = {}
+
+    def get(self, room_id):
+        if room_id not in self._rooms:
+            db.create_room(self.conn, room_id, time.time())
+            self._rooms[room_id] = Room(self.teammates, room_id, self.conn)
+        return self._rooms[room_id]

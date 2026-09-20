@@ -9,16 +9,24 @@
 <body>
 <div id="app">
   <header>
-    <h1>🐝 devhive</h1>
-    <span id="status" class="status">connecting…</span>
+    <a href="/" class="brand"><h1>🐝 devhive</h1></a>
+    <span id="status" class="status"></span>
   </header>
 
-  <main id="messages"></main>
+  <section id="rooms-view" hidden>
+    <div class="rooms-toolbar">
+      <button id="new-room">+ New war room</button>
+    </div>
+    <ul id="rooms-list"></ul>
+  </section>
 
-  <form id="composer">
-    <textarea id="input" placeholder="Throw a bug in — paste an error or stack trace…" rows="3"></textarea>
-    <button type="submit">Throw it in</button>
-  </form>
+  <section id="chat-view" hidden>
+    <main id="messages"></main>
+    <form id="composer">
+      <textarea id="input" placeholder="Throw a bug in — paste an error or stack trace…" rows="3"></textarea>
+      <button type="submit">Throw it in</button>
+    </form>
+  </section>
 </div>
 <script src="/static/app.js"></script>
 </body>
