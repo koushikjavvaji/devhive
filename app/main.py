@@ -9,8 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from app import db
 from app.rooms import RoomManager
 from app.teammates.heuristic import HeuristicTeammate
+from app.teammates.llm_teammate import build_llm_teammates
 from app.teammates.local_model import build_local_model_teammate
-from app.teammates.openai_teammate import build_openai_teammate
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -22,9 +22,7 @@ def build_teammates():
     if local_model:
         teammates.append(local_model)
 
-    openai_teammate = build_openai_teammate()
-    if openai_teammate:
-        teammates.append(openai_teammate)
+    teammates.extend(build_llm_teammates())
 
     return teammates
 

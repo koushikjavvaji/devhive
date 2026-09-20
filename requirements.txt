@@ -3,5 +3,6 @@ numpy>=2.4
 datasets>=5.0
 fastapi>=0.141
 uvicorn[standard]>=0.53
-# optional: only needed if you plug in the OpenAI teammate
+# optional: only needed if you plug in an LLM teammate (OpenAI or any
+# OpenAI-compatible provider — DeepSeek, Groq, OpenRouter, Together, ...)
 # openai>=1.0

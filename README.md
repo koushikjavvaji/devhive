@@ -41,7 +41,8 @@ Teammates that join a room:
 |---|---|---|
 | `triage-bot` | nothing | Deterministic traceback parser — exception type, common-error hints, call chain. Always available. |
 | `from-scratch-gpt` | a trained checkpoint (see below) | Our own model. Trained comment → code on a small corpus, so treat it as a rough first draft, not a diagnosis. |
-| `gpt` | `OPENAI_API_KEY` | Real LLM diagnosis, only joins if the key is set. |
+| `gpt` | `OPENAI_API_KEY` | Real LLM diagnosis via OpenAI, only joins if the key is set. |
+| (any name you give it) | `DEVHIVE_LLM_PROVIDERS` | Any number of OpenAI-compatible providers — DeepSeek, Groq, OpenRouter, Together, etc. This is how you get more than one real LLM in the room at once. |
 
 Copy `.env.example` to `.env` and fill in what you want; unset optional
 vars just mean that teammate/override is skipped.
