@@ -7,14 +7,21 @@ from app import db
 class Room:
     """A single war room: message history, connected clients, and the teammates in it.
 
-    Each teammate responds independently and concurrently as soon as it's ready, so
-    faster teammates (the heuristic one) don't wait on slower ones (model inference).
-    Messages are persisted to sqlite, so history survives a server restart."""
+    A message triggers round 1 (everyone answers the human independently and concurrently,
+    so faster teammates like the heuristic one don't wait on slower model inference), then
+    `reaction_rounds` more rounds where any teammate that can_react sees the whole room —
+    including every prior reaction round, not just round 1 — and actually pushes back on
+    it. That's what makes it a conversation between reactors instead of each one just
+    reacting to round 1 in isolation. Messages are persisted to sqlite, so history survives
+    a server restart."""
 
-    def __init__(self, teammates, room_id, conn):
+    REACTION_ROUNDS = 2
+
+    def __init__(self, teammates, room_id, conn, reaction_rounds=REACTION_ROUNDS):
         self.teammates = teammates
         self.room_id = room_id
         self.conn = conn
+        self.reaction_rounds = reaction_rounds
         self.messages = db.load_messages(self.conn, self.room_id)
         self.connections = []
         self._has_title = any(m["sender_type"] == "human" for m in self.messages)
@@ -63,8 +70,21 @@ class Room:
             db.set_room_title(self.conn, self.room_id, text.splitlines()[0][:60])
             self._has_title = True
 
-        for teammate in self.teammates:
-            asyncio.create_task(self._get_teammate_reply(teammate))
+        # runs as one background task so this doesn't block the websocket loop, but the
+        # two rounds inside it still happen in order (react needs round 1 to exist first)
+        asyncio.create_task(self._run_rounds())
+
+    async def _run_rounds(self):
+        await asyncio.gather(*(
+            self._get_teammate_reply(teammate) for teammate in self.teammates
+        ))
+
+        reactors = [t for t in self.teammates if t.can_react]
+        if reactors and len(self.teammates) > 1:
+            for _ in range(self.reaction_rounds):
+                await asyncio.gather(*(
+                    self._get_teammate_reaction(teammate) for teammate in reactors
+                ))
 
     async def _get_teammate_reply(self, teammate):
         await self.broadcast({"type": "typing", "sender": teammate.name})
@@ -73,6 +93,17 @@ class Room:
             reply = await teammate.respond(self.messages)
         except Exception as exc:
             reply = f"(failed to respond: {exc})"
+
+        message = self._record(teammate.name, "teammate", reply)
+        await self.broadcast({"type": "message", "message": message})
+
+    async def _get_teammate_reaction(self, teammate):
+        await self.broadcast({"type": "typing", "sender": teammate.name})
+
+        try:
+            reply = await teammate.react(self.messages)
+        except Exception as exc:
+            reply = f"(failed to react: {exc})"
 
         message = self._record(teammate.name, "teammate", reply)
         await self.broadcast({"type": "message", "message": message})

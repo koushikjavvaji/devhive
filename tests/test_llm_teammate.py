@@ -87,7 +87,7 @@ def test_upstream_200_with_error_field_raises_the_real_message():
         model_extra={"error": {"message": "Upstream error from Nvidia: Service temporarily overloaded"}},
     )
     with pytest.raises(RuntimeError, match="Service temporarily overloaded"):
-        LLMTeammate("fake", FakeClient(response), "fake-model")._complete("help")
+        LLMTeammate("fake", FakeClient(response), "fake-model")._complete("system", "help")
 
 
 def test_empty_content_raises_instead_of_returning_none():
@@ -96,4 +96,98 @@ def test_empty_content_raises_instead_of_returning_none():
         model_extra={},
     )
     with pytest.raises(RuntimeError, match="empty response"):
-        LLMTeammate("fake", FakeClient(response), "fake-model")._complete("help")
+        LLMTeammate("fake", FakeClient(response), "fake-model")._complete("system", "help")
+
+
+def test_can_react_is_true():
+    assert LLMTeammate("fake", FakeClient(None), "fake-model").can_react is True
+
+
+def test_react_sends_the_whole_room_not_just_the_human_message():
+    """The point of react(): it should see every teammate's round-1 answer, not just
+    reuse last_human_message like respond() does."""
+    captured = {}
+
+    class RecordingCompletions:
+        def create(self, **kwargs):
+            captured["messages"] = kwargs["messages"]
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="I disagree with triage-bot"))],
+                model_extra={},
+            )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=RecordingCompletions()))
+    teammate = LLMTeammate("fake", client, "fake-model")
+
+    room_messages = [
+        {"sender": "you", "sender_type": "human", "text": "KeyError: 'x'"},
+        {"sender": "triage-bot", "sender_type": "teammate", "text": "guard the key"},
+        {"sender": "fake", "sender_type": "teammate", "text": "my own earlier take"},
+    ]
+
+    reply = asyncio.run(teammate.react(room_messages))
+
+    assert reply == "I disagree with triage-bot"
+    transcript = captured["messages"][1]["content"]
+    assert "triage-bot: guard the key" in transcript
+    assert "my own earlier take" in transcript
+
+
+def test_react_labels_its_own_earlier_message_as_you_not_its_name():
+    """Regression test hit live: nemotron's own round-1 message was labeled with its own
+    name in the transcript, so when reacting it referred to itself in third person
+    ("Nemotron didn't provide input") instead of understanding that was its own answer."""
+    captured = {}
+
+    class RecordingCompletions:
+        def create(self, **kwargs):
+            captured["messages"] = kwargs["messages"]
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+                model_extra={},
+            )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=RecordingCompletions()))
+    teammate = LLMTeammate("nemotron", client, "fake-model")
+
+    room_messages = [
+        {"sender": "you", "sender_type": "human", "text": "bug"},
+        {"sender": "nemotron", "sender_type": "teammate", "text": "my earlier diagnosis"},
+        {"sender": "triage-bot", "sender_type": "teammate", "text": "some hint"},
+    ]
+
+    asyncio.run(teammate.react(room_messages))
+
+    transcript = captured["messages"][1]["content"]
+    assert "You: my earlier diagnosis" in transcript
+    assert "nemotron:" not in transcript
+    assert "triage-bot: some hint" in transcript
+
+
+def test_react_skips_a_teammates_failed_round_1_message():
+    """A crashed response isn't an opinion — it shouldn't confuse the reactor into
+    treating "(failed to respond: ...)" as something to agree or disagree with."""
+    captured = {}
+
+    class RecordingCompletions:
+        def create(self, **kwargs):
+            captured["messages"] = kwargs["messages"]
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+                model_extra={},
+            )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=RecordingCompletions()))
+    teammate = LLMTeammate("nemotron", client, "fake-model")
+
+    room_messages = [
+        {"sender": "you", "sender_type": "human", "text": "bug"},
+        {"sender": "nemotron", "sender_type": "teammate", "text": "(failed to respond: upstream overloaded)"},
+        {"sender": "triage-bot", "sender_type": "teammate", "text": "some hint"},
+    ]
+
+    asyncio.run(teammate.react(room_messages))
+
+    transcript = captured["messages"][1]["content"]
+    assert "failed to respond" not in transcript
+    assert "triage-bot: some hint" in transcript

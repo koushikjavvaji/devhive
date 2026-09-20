@@ -171,7 +171,8 @@ main#messages {
 
 .msg pre {
   margin: 6px 0 0;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 #composer {

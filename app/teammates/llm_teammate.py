@@ -10,6 +10,16 @@ SYSTEM_PROMPT = (
     "Keep it under 120 words."
 )
 
+REACTION_SYSTEM_PROMPT = (
+    "You are a teammate in a collaborative debugging war room. Below is the room's "
+    "transcript. Your own earlier message is labeled 'You:'; everyone else is labeled by "
+    "their name (which may include a rule-based bot and/or other AI models). Don't just "
+    "restate your own answer — react to the others: say what you agree with, call out "
+    "anything you think is wrong, incomplete, or made up, and add anything they missed. "
+    "If everyone already nailed it, say so briefly instead of padding. Refer to yourself "
+    "as 'I', not by name. Keep it under 100 words."
+)
+
 
 class LLMTeammate(Teammate):
     """Any OpenAI-compatible chat completions API — OpenAI itself, or an OpenAI-compatible
@@ -17,6 +27,7 @@ class LLMTeammate(Teammate):
     how the room gets more than one real LLM in it at once."""
 
     color = "#577590"
+    can_react = True
 
     def __init__(self, name, client, model, color=None):
         self.name = name
@@ -28,14 +39,23 @@ class LLMTeammate(Teammate):
     async def respond(self, messages):
         prompt = self.last_human_message(messages)
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._complete, prompt)
+        return await loop.run_in_executor(None, self._complete, SYSTEM_PROMPT, prompt)
 
-    def _complete(self, prompt):
+    async def react(self, messages):
+        transcript = "\n\n".join(
+            f"{'You' if m['sender'] == self.name else m['sender']}: {m['text']}"
+            for m in messages
+            if not m["text"].startswith("(failed to")  # a crash isn't an opinion to weigh in on
+        )
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._complete, REACTION_SYSTEM_PROMPT, transcript)
+
+    def _complete(self, system_prompt, user_content):
         completion = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
             ],
         )
         if not completion.choices:

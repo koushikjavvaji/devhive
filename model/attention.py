@@ -24,7 +24,7 @@ class GroupedQueryAttention(nn.Module):
         self.rope = RoPE(self.head_dim, max_seq_len)
 
     def forward(self, x, kv_cache=None, start_pos=0):
-        batch, seq_len, d_model = x.shape
+        batch, seq_len, _ = x.shape
 
         q = self.q_proj(x).view(batch, seq_len, self.n_heads, self.head_dim).transpose(1, 2)
         k = self.k_proj(x).view(batch, seq_len, self.n_kv_heads, self.head_dim).transpose(1, 2)
