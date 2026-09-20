@@ -1,5 +1,13 @@
 # devhive 🐝
 
+[![tests](https://github.com/koushikjavvaji/devhive/actions/workflows/tests.yml/badge.svg)](https://github.com/koushikjavvaji/devhive/actions/workflows/tests.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**[Live demo](https://devhive.onrender.com)** — free tier, spins down after 15 min idle
+(first request after that takes ~30-60s to wake up). Runs `triage-bot` + real LLM
+teammates; `from-scratch-gpt` is [local-only](#run-the-app) — the deploy deliberately
+skips the torch/training stack to keep the free-tier build small and fast.
+
 an AI war room. throw bugs in, get answers out.
 
 humans and AI teammates — debugging, testing, fixing. together.
@@ -90,6 +98,21 @@ actually take before committing to it.
 
 App tests use an isolated db + a fixed teammate list (`app.main.create_app`),
 so they don't touch `data/devhive.db` or need a trained checkpoint on disk.
+
+## deploying
+
+`render.yaml` + `requirements-render.txt` deploy the app on [Render](https://render.com)'s
+free tier, deliberately without `from-scratch-gpt`: `requirements-render.txt` skips
+torch/numpy/datasets entirely (verified locally with no checkpoint present and no torch
+installed at all — the app starts fine and just doesn't offer that teammate), which keeps
+the free-tier build fast and well under the RAM limit.
+
+To go live: push to GitHub, then in the Render dashboard, "New" → "Blueprint" → pick this
+repo (it reads `render.yaml` automatically) → set `DEVHIVE_LLM_PROVIDERS` in the
+Environment tab to your own provider JSON (same format as `.env.example`) → Deploy.
+
+SQLite on the free tier's ephemeral disk means room history resets on redeploy/restart —
+fine for a demo, not for anything that needs to persist.
 
 ## project layout
 

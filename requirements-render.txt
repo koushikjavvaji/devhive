@@ -1,0 +1,7 @@
+# Lean runtime deps for the deployed app only — deliberately NOT -r requirements.txt.
+# torch/numpy/datasets are only needed for the training pipeline (scripts/) and tests,
+# and pulling torch onto a free-tier host for a teammate that isn't deployed (see below)
+# would slow the build and eat most of the free RAM for nothing.
+fastapi>=0.141
+uvicorn[standard]>=0.53
+openai>=1.0
