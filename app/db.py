@@ -41,11 +41,14 @@ def create_room(conn, room_id, created_at):
 
 
 def list_rooms(conn):
+    # a room row exists as soon as "+ New war room" is clicked, before anyone's sent
+    # anything — hide the ones nobody ever actually used instead of listing dead rows
     rows = conn.execute("""
         SELECT r.id, r.title, r.created_at, COUNT(m.id) AS message_count
         FROM rooms r
         LEFT JOIN messages m ON m.room_id = r.id
         GROUP BY r.id
+        HAVING COUNT(m.id) > 0
         ORDER BY r.created_at DESC
     """).fetchall()
     return [dict(row) for row in rows]

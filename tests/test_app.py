@@ -19,17 +19,14 @@ def test_health(tmp_path):
     assert resp.json() == {"status": "ok", "teammates": ["triage-bot"]}
 
 
-def test_create_and_list_rooms(tmp_path):
+def test_created_room_is_hidden_from_the_list_until_it_has_a_message(tmp_path):
+    """A room row exists as soon as "+ New war room" is clicked — that shouldn't clutter
+    the list with dead "untitled, 0 messages" rows nobody ever actually used."""
     client = make_client(tmp_path)
 
     created = client.post("/api/rooms").json()
     assert "id" in created
-
-    rooms = client.get("/api/rooms").json()
-    assert len(rooms) == 1
-    assert rooms[0]["id"] == created["id"]
-    assert rooms[0]["title"] is None
-    assert rooms[0]["message_count"] == 0
+    assert client.get("/api/rooms").json() == []
 
 
 def test_websocket_flow_sets_title_and_gets_teammate_reply(tmp_path):
