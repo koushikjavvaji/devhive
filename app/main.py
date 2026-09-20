@@ -46,6 +46,14 @@ async def room_page(room_id: str):
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/api/health")
+async def health():
+    return {
+        "status": "ok",
+        "teammates": [t.name for t in room_manager.teammates],
+    }
+
+
 @app.get("/api/rooms")
 async def list_rooms():
     return db.list_rooms(conn)

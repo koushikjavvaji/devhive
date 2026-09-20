@@ -1,7 +1,8 @@
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("data/devhive.db")
+DB_PATH = Path(os.environ.get("DEVHIVE_DB_PATH", "data/devhive.db"))
 
 
 def get_connection(path=DB_PATH):

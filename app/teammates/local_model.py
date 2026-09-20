@@ -3,8 +3,8 @@ import os
 
 from app.teammates.base import Teammate
 
-CHECKPOINT_PATH = "checkpoints/ckpt.pt"
-TOKENIZER_PATH = "tokenizer/vocab.json"
+CHECKPOINT_PATH = os.environ.get("DEVHIVE_CHECKPOINT_PATH", "checkpoints/ckpt.pt")
+TOKENIZER_PATH = os.environ.get("DEVHIVE_TOKENIZER_PATH", "tokenizer/vocab.json")
 
 
 class LocalModelTeammate(Teammate):
