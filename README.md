@@ -16,9 +16,10 @@ Two things:
    inference. Trained comment → code on a
    [CodeSearchNet](https://huggingface.co/datasets/sentence-transformers/codesearchnet)
    subset.
-2. **The war room app** (`app/`) — a FastAPI + WebSocket chat where you
-   paste an error or stack trace into a room and multiple AI teammates
-   respond concurrently. The from-scratch model above is one of them.
+2. **The war room app** (`app/`) — a FastAPI + WebSocket chat where you paste an error or
+   stack trace into a room and multiple AI teammates respond, then argue with each other
+   over a couple of rounds until they converge on one answer. The from-scratch model above
+   is one of the teammates.
 
 ## setup
 
@@ -39,13 +40,31 @@ Teammates that join a room:
 
 | Teammate | Needs | What it does |
 |---|---|---|
-| `triage-bot` | nothing | Deterministic traceback parser — exception type, common-error hints, call chain. Always available. |
-| `from-scratch-gpt` | a trained checkpoint (see below) | Our own model. Trained comment → code on a small corpus, so treat it as a rough first draft, not a diagnosis. |
-| `gpt` | `OPENAI_API_KEY` | Real LLM diagnosis via OpenAI, only joins if the key is set. |
+| `triage-bot` | nothing | Deterministic traceback parser — exception type, common-error hints, call chain. Always available, never reacts (nothing to debate). |
+| `from-scratch-gpt` | a trained checkpoint (see below) | Our own model. Trained comment → code on a small corpus, so treat it as a rough first draft, not a diagnosis. Doesn't react either — it's a completion model, not a conversational one. |
+| `gpt` | `OPENAI_API_KEY` | A single default OpenAI teammate, if you just want the one. |
 | (any name you give it) | `DEVHIVE_LLM_PROVIDERS` | Any number of OpenAI-compatible providers — DeepSeek, Groq, OpenRouter, Together, etc. This is how you get more than one real LLM in the room at once. |
 
 Copy `.env.example` to `.env` and fill in what you want; unset optional
 vars just mean that teammate/override is skipped.
+
+### how the "war" actually works
+
+One message triggers two kinds of round, run by `Room` in `app/rooms.py`:
+
+1. **Round 1** — every teammate answers the human independently and concurrently. Fast,
+   no cross-talk yet.
+2. **Reaction rounds** (`Room.REACTION_ROUNDS`, default 2) — any teammate with
+   `can_react = True` (the real LLMs; `triage-bot` and `from-scratch-gpt` opt out, since a
+   regex parser and a code-completion model can't hold an opinion) sees the *entire* room,
+   including every earlier reaction round, and is explicitly told to agree, disagree, or
+   call out something another teammate got wrong — not just restate its own answer.
+
+With two independent LLMs configured, this produces a real debate that converges instead
+of two isolated takes. From an actual run pasting a `'dict' object has no attribute
+'expired'` traceback: after round 1, `nemotron` and `groq-oss` each proposed a fix; over
+the next two rounds they cross-checked each other's reasoning, and the final message
+stated the fix both had converged on — not scripted, an actual emergent agreement.
 
 ## training the model from scratch
 
