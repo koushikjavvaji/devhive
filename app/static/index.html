@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>devhive — war room</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🐝 devhive</h1>
+    <span id="status" class="status">connecting…</span>
+  </header>
+
+  <main id="messages"></main>
+
+  <form id="composer">
+    <textarea id="input" placeholder="Throw a bug in — paste an error or stack trace…" rows="3"></textarea>
+    <button type="submit">Throw it in</button>
+  </form>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
