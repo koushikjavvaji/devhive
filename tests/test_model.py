@@ -76,6 +76,18 @@ def test_gpt_forward_and_loss():
     assert len(kv_caches) == config.n_layers
 
 
+def test_residual_projections_get_scaled_down_init():
+    torch.manual_seed(0)
+    config = tiny_config(d_model=64, d_ff=256, n_layers=8)
+    model = GPT(config)
+    block = model.blocks[0]
+
+    expected = 0.02 / (2 * config.n_layers) ** 0.5
+    assert abs(block.attn.out_proj.weight.std().item() - expected) < expected * 0.15
+    assert abs(block.ffn.down_proj.weight.std().item() - expected) < expected * 0.15
+    assert abs(block.attn.q_proj.weight.std().item() - 0.02) < 0.02 * 0.15  # others untouched
+
+
 def test_gpt_ties_output_head_to_embedding():
     model = GPT(tiny_config())
     assert model.lm_head.weight is model.token_emb.weight

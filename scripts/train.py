@@ -11,11 +11,17 @@ from model.gpt import GPT
 from tokenizer.byte_bpe import ByteTokenizer
 
 sys.stdout.reconfigure(line_buffering=True)
+torch.serialization.add_safe_globals([GPTConfig])
 
 # ---- data / io ----
 DATA_DIR = "data"
 CHECKPOINT_DIR = "checkpoints"
-CHECKPOINT_PATH = f"{CHECKPOINT_DIR}/ckpt.pt"
+CHECKPOINT_PATH = f"{CHECKPOINT_DIR}/ckpt.pt"  # best val loss so far — what the app loads
+# latest state incl. optimizer, written at every eval — what --resume continues from.
+# To train longer, raise MAX_ITERS and run with --resume (the LR schedule follows the new
+# MAX_ITERS, so expect a bump in LR if the run had already started decaying).
+LAST_CHECKPOINT_PATH = f"{CHECKPOINT_DIR}/last.pt"
+RESUME = "--resume" in sys.argv
 TOKENIZER_PATH = "tokenizer/vocab.json"
 
 tokenizer = ByteTokenizer.load(TOKENIZER_PATH)
@@ -123,9 +129,21 @@ optimizer = torch.optim.AdamW(
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 best_val_loss = float("inf")
+start_iter = 0
+
+if RESUME:
+    state = torch.load(LAST_CHECKPOINT_PATH, map_location=device)
+    if state["config"] != config:
+        sys.exit(f"{LAST_CHECKPOINT_PATH} was trained with a different config:\n  {state['config']}\nvs\n  {config}")
+    model.load_state_dict(state["model"])
+    optimizer.load_state_dict(state["optimizer"])
+    start_iter = state["iter"] + 1
+    best_val_loss = state["best_val_loss"]
+    print(f"Resumed from {LAST_CHECKPOINT_PATH} at iter {start_iter} (best val loss {best_val_loss:.4f})")
+
 t0 = time.perf_counter()
 
-for it in range(MAX_ITERS):
+for it in range(start_iter, MAX_ITERS):
     lr = get_lr(it)
     for group in optimizer.param_groups:
         group["lr"] = lr
@@ -162,5 +180,13 @@ for it in range(MAX_ITERS):
                 "val_loss": best_val_loss,
             }, CHECKPOINT_PATH)
             print(f"Saved checkpoint to {CHECKPOINT_PATH} (val loss {best_val_loss:.4f})")
+
+        torch.save({
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "config": config,
+            "iter": it,
+            "best_val_loss": best_val_loss,
+        }, LAST_CHECKPOINT_PATH)
 
 print("Training complete.")

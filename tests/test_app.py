@@ -172,3 +172,17 @@ def test_rate_limiter_window_slides():
 
     now[0] = 10.0
     assert limiter.allow("a")
+
+
+def test_pages_get_a_content_security_policy(tmp_path):
+    resp = make_client(tmp_path).get("/")
+    csp = resp.headers["content-security-policy"]
+    assert "script-src 'self' https://cdn.jsdelivr.net;" in csp
+    assert "object-src 'none'" in csp
+    assert resp.headers["x-content-type-options"] == "nosniff"
+
+
+def test_importing_the_app_module_has_no_side_effects():
+    """No module-level app: importing must not open the real db or load the checkpoint."""
+    import app.main
+    assert not hasattr(app.main, "app")

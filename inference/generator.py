@@ -40,12 +40,16 @@ class LocalGenerator:
 
     @torch.no_grad()
     def generate_code(self, comment, max_new_tokens=150, temperature=0.8, top_k=50):
-        prompt_tokens = [self.tokenizer.comment_token]
-        prompt_tokens.extend(self.tokenizer.encode(comment))
-        prompt_tokens.append(self.tokenizer.code_token)
-
         max_seq_len = self.model.config.max_seq_len
-        prompt_tokens = prompt_tokens[-max_seq_len:]
+
+        # trim the comment itself, never the whole prompt: chopping the front off the
+        # prompt drops the <comment> marker the model was trained to start from, and a
+        # prompt that fills the context leaves no room to generate anything at all
+        room_to_generate = min(max_new_tokens, max_seq_len // 2)
+        comment_budget = max_seq_len - room_to_generate - 2  # minus <comment> and <code>
+        comment_tokens = self.tokenizer.encode(comment)[:comment_budget]
+
+        prompt_tokens = [self.tokenizer.comment_token, *comment_tokens, self.tokenizer.code_token]
 
         x = torch.tensor([prompt_tokens], dtype=torch.long, device=self.device)
         logits, _, kv_caches = self.model(x, start_pos=0)

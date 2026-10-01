@@ -190,6 +190,31 @@ main#messages {
   padding: 8px 10px;
 }
 
+.msg pre { position: relative; }
+
+.msg pre .copy {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--panel);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.msg pre:hover .copy,
+.msg pre .copy:focus-visible { opacity: 1; }
+
+@media (hover: none) {
+  .msg pre .copy { opacity: 1; }
+}
+
 .notice {
   align-self: center;
   font-size: 12px;

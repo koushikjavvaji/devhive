@@ -17,6 +17,7 @@ from app.teammates.local_model import build_local_model_teammate
 STATIC_DIR = Path(__file__).parent / "static"
 
 MAX_NAME_CHARS = 24
+CDN_ORIGIN = "https://cdn.jsdelivr.net"  # marked + DOMPurify, see static/index.html
 
 # app-level loggers (teammate failures, crashed debates) default to WARNING with no
 # handler of their own under uvicorn — give them one so they actually show up
@@ -48,9 +49,30 @@ def display_name(raw, teammate_names):
 
 def create_app(conn=None, teammates=None):
     """Factory so tests can inject an isolated db connection and a fixed teammate list
-    instead of hitting the real database and (possibly absent) trained checkpoint."""
+    instead of hitting the real database and (possibly absent) trained checkpoint. There's
+    deliberately no module-level `app = create_app()`: that would open the real db and load
+    the checkpoint on mere import (tests included) — uvicorn calls this via --factory."""
     fastapi_app = FastAPI(title="devhive")
     fastapi_app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @fastapi_app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        # model output ends up in innerHTML (sanitized by DOMPurify) — the CSP is the
+        # second line of defense: even if something slipped through, no inline or
+        # third-party script could run. ws(s):// is spelled out because older Safari
+        # doesn't count same-host websockets as 'self'.
+        host = request.headers.get("host", "")
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            f"script-src 'self' {CDN_ORIGIN}; "
+            f"connect-src 'self' ws://{host} wss://{host}; "
+            "img-src 'self' data:; "
+            "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "same-origin"
+        return response
 
     conn = conn or db.get_connection()
     room_manager = RoomManager(teammates if teammates is not None else build_teammates(), conn)
@@ -130,6 +152,3 @@ def create_app(conn=None, teammates=None):
             room.disconnect(websocket)
 
     return fastapi_app
-
-
-app = create_app()

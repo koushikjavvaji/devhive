@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -33,6 +35,14 @@ class GPT(nn.Module):
         self.lm_head.weight = self.token_emb.weight
 
         self.apply(self._init_weights)
+
+        # GPT-2's residual scaling: each block adds two projections (attention out,
+        # FFN down) onto the residual stream, so its variance grows with depth. Shrinking
+        # their init by 1/sqrt(2 * n_layers) keeps the stream's scale steady at init.
+        residual_std = 0.02 / math.sqrt(2 * config.n_layers)
+        for block in self.blocks:
+            nn.init.normal_(block.attn.out_proj.weight, mean=0.0, std=residual_std)
+            nn.init.normal_(block.ffn.down_proj.weight, mean=0.0, std=residual_std)
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear) and module is not self.lm_head:

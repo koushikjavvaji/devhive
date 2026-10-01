@@ -150,6 +150,7 @@ function initChat(roomId) {
       sender.style.color = colorFor(message.sender);
       body.className = "body md";
       body.innerHTML = renderMarkdown(message.text);
+      addCopyButtons(body);
     } else {
       // human messages are mostly pasted tracebacks — markdown would mangle the
       // underscores and asterisks in them, so they stay exactly as typed
@@ -160,6 +161,25 @@ function initChat(roomId) {
     el.appendChild(sender);
     el.appendChild(body);
     append(el);
+  }
+
+  function addCopyButtons(container) {
+    for (const pre of container.querySelectorAll("pre")) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "copy";
+      btn.textContent = "copy";
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(pre.querySelector("code")?.textContent ?? pre.textContent);
+          btn.textContent = "copied";
+        } catch {
+          btn.textContent = "can't copy";
+        }
+        setTimeout(() => (btn.textContent = "copy"), 1500);
+      });
+      pre.appendChild(btn);
+    }
   }
 
   function notice(text, kind = "info") {

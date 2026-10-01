@@ -6,3 +6,5 @@ uvicorn[standard]>=0.53
 # optional: only needed if you plug in an LLM teammate (OpenAI or any
 # OpenAI-compatible provider — DeepSeek, Groq, OpenRouter, Together, ...)
 # openai>=1.0
+# optional: only needed with DATABASE_URL (Postgres instead of the local SQLite file)
+# psycopg[binary,pool]>=3.2

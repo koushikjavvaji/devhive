@@ -4,9 +4,16 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements-render.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app.main:create_app --factory --host 0.0.0.0 --port $PORT
+    # a deploy that can't start (e.g. a malformed DEVHIVE_LLM_PROVIDERS) never goes live —
+    # Render keeps serving the previous version instead
+    healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.4
       - key: DEVHIVE_LLM_PROVIDERS
+        sync: false
+      # Postgres connection string (e.g. a free Neon or Supabase database) — without it,
+      # room history lives on the free tier's disk and is lost on every deploy/restart
+      - key: DATABASE_URL
         sync: false

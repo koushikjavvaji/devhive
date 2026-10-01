@@ -39,7 +39,7 @@ python3 -m venv .venv
 ## run the app
 
 ```bash
-./.venv/bin/uvicorn app.main:app --reload
+./.venv/bin/uvicorn app.main:create_app --factory --reload
 ```
 
 Open http://localhost:8000, start a room, paste an error.
@@ -48,7 +48,7 @@ Teammates that join a room:
 
 | Teammate | Needs | What it does |
 |---|---|---|
-| `triage-bot` | nothing | Deterministic traceback parser — exception type, common-error hints, call chain. Always available, never reacts (nothing to debate). |
+| `triage-bot` | nothing | Deterministic error parser for Python, JS/Node, Java, Go and Rust — exception type (Java: the root `Caused by:`), common-error hints, call chain. Always available, never reacts (nothing to debate). |
 | `from-scratch-gpt` | a trained checkpoint (see below) | Our own model. Trained comment → code on a small corpus, so treat it as a rough first draft, not a diagnosis. Doesn't react either — it's a completion model, not a conversational one. |
 | `gpt` | `OPENAI_API_KEY` | A single default OpenAI teammate, if you just want the one. |
 | (any name you give it) | `DEVHIVE_LLM_PROVIDERS` | Any number of OpenAI-compatible providers — DeepSeek, Groq, OpenRouter, Together, etc. This is how you get more than one real LLM in the room at once. |
@@ -96,6 +96,11 @@ minutes/~1h on a laptop; bump them up for a real run. `scripts/train.py`
 prints device + throughput so you can gauge how long a bigger run will
 actually take before committing to it.
 
+Training writes two checkpoints: `checkpoints/ckpt.pt` (best val loss — what the app
+loads) and `checkpoints/last.pt` (latest state including the optimizer). To keep going
+after a run finishes or gets interrupted, raise `MAX_ITERS` if needed and run
+`./.venv/bin/python -m scripts.train --resume`.
+
 ## tests
 
 ```bash
@@ -105,7 +110,9 @@ actually take before committing to it.
 ```
 
 App tests use an isolated db + a fixed teammate list (`app.main.create_app`),
-so they don't touch `data/devhive.db` or need a trained checkpoint on disk.
+so they don't touch `data/devhive.db` or need a trained checkpoint on disk. The storage
+tests also run against Postgres when `DEVHIVE_TEST_DATABASE_URL` points at one (CI
+starts a Postgres service for this); otherwise those cases are skipped.
 
 ## deploying
 
@@ -119,9 +126,14 @@ To go live: push to GitHub, then in the Render dashboard, "New" → "Blueprint" 
 repo (it reads `render.yaml` automatically) → set `DEVHIVE_LLM_PROVIDERS` in the
 Environment tab to your own provider JSON (same format as `.env.example`) → Deploy.
 
-SQLite on the free tier's ephemeral disk means room history resets on redeploy/restart —
-fine for a demo, not for anything that needs to persist. (Locally, `data/devhive.db`
-persists across restarts as you'd expect.)
+Room history: the free tier's disk is wiped on every deploy/restart, so with the default
+SQLite file history doesn't survive. To keep it, create a free Postgres database
+([Neon](https://neon.tech) or [Supabase](https://supabase.com)) and set its connection
+string as `DATABASE_URL` in the Environment tab — the app creates its tables on startup.
+(Locally, `data/devhive.db` persists across restarts as you'd expect.)
+
+`render.yaml` also sets a health check on `/api/health`, so a deploy that fails to start
+(e.g. a malformed `DEVHIVE_LLM_PROVIDERS`) never replaces the version that's running.
 
 ### limits
 
