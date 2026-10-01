@@ -24,11 +24,16 @@
   <section id="chat-view" hidden>
     <main id="messages"></main>
     <form id="composer">
-      <textarea id="input" placeholder="Throw a bug in — paste an error or stack trace…" rows="3"></textarea>
+      <div class="composer-main">
+        <input id="name" type="text" maxlength="24" placeholder="your name (optional)" autocomplete="nickname">
+        <textarea id="input" placeholder="Throw a bug in — paste an error or stack trace…" rows="3" maxlength="8000"></textarea>
+      </div>
       <button type="submit">Throw it in</button>
     </form>
   </section>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

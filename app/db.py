@@ -24,12 +24,23 @@ def get_connection(path=DB_PATH):
             sender TEXT NOT NULL,
             sender_type TEXT NOT NULL,
             text TEXT NOT NULL,
-            ts REAL NOT NULL
+            ts REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'ok'
         )
     """)
+    _migrate(conn)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_room ON messages (room_id, id)")
     conn.commit()
     return conn
+
+
+def _migrate(conn):
+    # databases created before the status column existed: add it, and backfill the
+    # failures that used to be marked only by their "(failed to ...)" text
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(messages)")}
+    if "status" not in columns:
+        conn.execute("ALTER TABLE messages ADD COLUMN status TEXT NOT NULL DEFAULT 'ok'")
+        conn.execute("UPDATE messages SET status = 'failed' WHERE text LIKE '(failed to %'")
 
 
 def create_room(conn, room_id, created_at):
@@ -54,6 +65,10 @@ def list_rooms(conn):
     return [dict(row) for row in rows]
 
 
+def room_exists(conn, room_id):
+    return conn.execute("SELECT 1 FROM rooms WHERE id = ?", (room_id,)).fetchone() is not None
+
+
 def set_room_title(conn, room_id, title):
     conn.execute(
         "UPDATE rooms SET title = ? WHERE id = ? AND title IS NULL",
@@ -64,16 +79,16 @@ def set_room_title(conn, room_id, title):
 
 def load_messages(conn, room_id):
     rows = conn.execute(
-        "SELECT id, sender, sender_type, text, ts FROM messages WHERE room_id = ? ORDER BY id",
+        "SELECT id, sender, sender_type, text, ts, status FROM messages WHERE room_id = ? ORDER BY id",
         (room_id,),
     ).fetchall()
     return [dict(row) for row in rows]
 
 
-def insert_message(conn, room_id, sender, sender_type, text, ts):
+def insert_message(conn, room_id, sender, sender_type, text, ts, status="ok"):
     cursor = conn.execute(
-        "INSERT INTO messages (room_id, sender, sender_type, text, ts) VALUES (?, ?, ?, ?, ?)",
-        (room_id, sender, sender_type, text, ts),
+        "INSERT INTO messages (room_id, sender, sender_type, text, ts, status) VALUES (?, ?, ?, ?, ?, ?)",
+        (room_id, sender, sender_type, text, ts, status),
     )
     conn.commit()
     return cursor.lastrowid

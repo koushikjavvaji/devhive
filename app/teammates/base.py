@@ -22,6 +22,13 @@ class Teammate(ABC):
         re-answering the original message in isolation."""
         raise NotImplementedError
 
+    async def stream(self, kind, messages):
+        """Yield the reply in chunks as it's produced. kind is "respond" or "react".
+        Default: one chunk with the whole reply — teammates that can actually stream
+        (the LLM ones) override this so the room shows tokens as they arrive."""
+        method = self.respond if kind == "respond" else self.react
+        yield await method(messages)
+
     @staticmethod
     def last_human_message(messages):
         for message in reversed(messages):

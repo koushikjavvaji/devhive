@@ -53,7 +53,7 @@ class HeuristicTeammate(Teammate):
             last_file, last_line, last_func = frames[-1]
             lines.append(f"Raised at {last_file}:{last_line} in {last_func}() (innermost frame).")
             if len(frames) > 1:
-                chain = " -> ".join(f"{f}:{l}" for f, l, _ in frames)
+                chain = " -> ".join(f"{file}:{line}" for file, line, _ in frames)
                 lines.append(f"Call chain: {chain}")
 
         return "\n".join(lines)

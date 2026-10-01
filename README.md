@@ -61,12 +61,19 @@ vars just mean that teammate/override is skipped.
 One message triggers two kinds of round, run by `Room` in `app/rooms.py`:
 
 1. **Round 1** — every teammate answers the human independently and concurrently. Fast,
-   no cross-talk yet.
-2. **Reaction rounds** (`Room.REACTION_ROUNDS`, default 2) — any teammate with
+   no cross-talk yet. LLM teammates also get the earlier room history (trimmed to a
+   budget), so a follow-up like "that didn't work" makes sense to them.
+2. **Reaction rounds** (`Room.REACTION_ROUNDS`, default up to 2) — any teammate with
    `can_react = True` (the real LLMs; `triage-bot` and `from-scratch-gpt` opt out, since a
-   regex parser and a code-completion model can't hold an opinion) sees the *entire* room,
+   regex parser and a code-completion model can't hold an opinion) sees the room,
    including every earlier reaction round, and is explicitly told to agree, disagree, or
-   call out something another teammate got wrong — not just restate its own answer.
+   call out something another teammate got wrong — not just restate its own answer. Each
+   reaction ends with a `VERDICT: AGREE/DISAGREE` line (stripped before it's shown); once
+   every reactor agrees, the debate stops early instead of burning another round.
+
+Replies stream into the room token by token. Messages sent while a debate is still running
+queue up and each gets its own full debate, in order.
+Each teammate's turn has a timeout, so one hung provider can't stall the room.
 
 With two independent LLMs configured, this produces a real debate that converges instead
 of two isolated takes. From an actual run pasting a `'dict' object has no attribute
@@ -94,6 +101,7 @@ actually take before committing to it.
 ```bash
 ./.venv/bin/pip install -r requirements-dev.txt
 ./.venv/bin/python -m pytest
+./.venv/bin/ruff check .
 ```
 
 App tests use an isolated db + a fixed teammate list (`app.main.create_app`),
@@ -112,7 +120,22 @@ repo (it reads `render.yaml` automatically) → set `DEVHIVE_LLM_PROVIDERS` in t
 Environment tab to your own provider JSON (same format as `.env.example`) → Deploy.
 
 SQLite on the free tier's ephemeral disk means room history resets on redeploy/restart —
-fine for a demo, not for anything that needs to persist.
+fine for a demo, not for anything that needs to persist. (Locally, `data/devhive.db`
+persists across restarts as you'd expect.)
+
+### limits
+
+Every human message fans out to several paid LLM calls, so a public deploy is protected
+by a few in-memory limits (all overridable via env, see `app/limits.py`):
+
+| Env var | Default | |
+|---|---|---|
+| `DEVHIVE_MAX_MESSAGE_CHARS` | 8000 | longest message accepted |
+| `DEVHIVE_MESSAGES_PER_IP` / `DEVHIVE_MESSAGES_WINDOW_SECONDS` | 10 / 300 | per-IP message rate |
+| `DEVHIVE_ROOMS_PER_IP_PER_HOUR` | 20 | per-IP room creation |
+| `DEVHIVE_DAILY_MESSAGE_LIMIT` | 500 | global cap across everyone |
+| `DEVHIVE_LLM_TIMEOUT` | 45 | seconds before an LLM call gives up |
+| `DEVHIVE_TRUSTED_PROXY_HOPS` | 1 | proxies in front of the app appending to `X-Forwarded-For` (0 = none) |
 
 ## project layout
 
@@ -121,6 +144,6 @@ tokenizer/    byte-level BPE (train/save/load/encode/decode)
 model/        the transformer (embeddings, RoPE, GQA, SwiGLU, GPT)
 inference/    shared generation logic (KV-cached), used by the CLI and the app
 scripts/      train_tokenizer / prepare_data / train / generate
-app/          the war room: FastAPI server, rooms, teammates, static chat UI
+app/          the war room: FastAPI server, rooms, rate limits, teammates, static chat UI
 tests/        pytest suite for all of the above
 ```

@@ -3,14 +3,14 @@ import os
 import sys
 import time
 
-sys.stdout.reconfigure(line_buffering=True)
-
 import numpy as np
 import torch
 
 from model.config import GPTConfig
 from model.gpt import GPT
 from tokenizer.byte_bpe import ByteTokenizer
+
+sys.stdout.reconfigure(line_buffering=True)
 
 # ---- data / io ----
 DATA_DIR = "data"
